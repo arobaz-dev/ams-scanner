@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Barcode Scanner</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- ZXing fallback for iOS -->
+  <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
   <style>
     :root {
       --btn: var(--tg-theme-button-color, #3390ec);
@@ -26,7 +28,6 @@
       overflow: hidden;
     }
 
-    /* ── Full-screen video ── */
     #video {
       flex: 1;
       width: 100%;
@@ -35,7 +36,7 @@
       background: #000;
     }
 
-    /* ── Targeting overlay ── */
+    /* Overlay */
     #overlay {
       position: absolute;
       inset: 0;
@@ -44,38 +45,25 @@
       align-items: center;
       justify-content: center;
     }
-
-    .dimmer-top, .dimmer-bottom, .dimmer-left, .dimmer-right {
-      position: absolute;
-      background: rgba(0,0,0,0.5);
-    }
-    /* These four divs create the "hole" in the middle */
-
     .scan-box {
       position: relative;
       width: 78%;
-      height: 120px;
+      height: 110px;
       border-radius: 10px;
-      z-index: 2;
+      box-shadow: 0 0 0 2000px rgba(0,0,0,0.5);
     }
-
-    /* Corners */
     .corner {
       position: absolute;
       width: 24px; height: 24px;
-      border-color: #fff;
-      border-style: solid;
+      border-color: #fff; border-style: solid;
     }
-    .corner.tl { top:-2px; left:-2px;   border-width: 3px 0 0 3px; border-radius: 6px 0 0 0; }
-    .corner.tr { top:-2px; right:-2px;  border-width: 3px 3px 0 0; border-radius: 0 6px 0 0; }
+    .corner.tl { top:-2px;    left:-2px;  border-width: 3px 0 0 3px; border-radius: 6px 0 0 0; }
+    .corner.tr { top:-2px;    right:-2px; border-width: 3px 3px 0 0; border-radius: 0 6px 0 0; }
     .corner.bl { bottom:-2px; left:-2px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 6px; }
     .corner.br { bottom:-2px; right:-2px; border-width: 0 3px 3px 0; border-radius: 0 0 6px 0; }
-
-    /* Scan line */
     .scanline {
       position: absolute;
-      left: 6px; right: 6px;
-      height: 2px;
+      left: 6px; right: 6px; height: 2px;
       background: linear-gradient(90deg, transparent, var(--btn) 20%, var(--btn) 80%, transparent);
       animation: sweep 2s ease-in-out infinite;
       border-radius: 2px;
@@ -87,48 +75,39 @@
       100% { top: calc(100% - 4px); opacity: 0; }
     }
 
-    /* Flash */
     #flash {
-      position: absolute;
-      inset: 0;
-      background: #fff;
-      opacity: 0;
-      pointer-events: none;
-      z-index: 10;
+      position: absolute; inset: 0;
+      background: #fff; opacity: 0;
+      pointer-events: none; z-index: 10;
       transition: opacity 0.05s;
     }
-    #flash.on { opacity: 0.5; }
+    #flash.on { opacity: 0.4; }
 
-    /* ── Bottom panel ── */
+    /* Bottom panel */
     #panel {
       background: var(--secondary-bg);
       border-top: 1px solid rgba(255,255,255,0.08);
-      padding: 14px 18px 28px;
+      padding: 14px 18px 32px;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 12px;
-      position: relative;
       z-index: 20;
     }
 
     #status {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--hint);
-      text-align: center;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      font-size: 14px; font-weight: 500;
+      color: var(--hint); text-align: center;
+      display: flex; align-items: center; gap: 8px;
+      min-height: 22px;
     }
-    #status.live    { color: var(--btn); }
-    #status.found   { color: #2ecc71; }
-    #status.err     { color: #e74c3c; }
-
+    #status.live  { color: var(--btn); }
+    #status.found { color: #2ecc71; }
+    #status.err   { color: #e74c3c; }
     .pulse { animation: pulse 1.2s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
 
-    /* Result */
+    /* Result — hidden until barcode found */
     #result {
       display: none;
       flex-direction: column;
@@ -137,43 +116,27 @@
       width: 100%;
     }
     .barcode-num {
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      color: var(--btn);
-      word-break: break-all;
-      text-align: center;
+      font-size: 22px; font-weight: 700;
+      letter-spacing: 3px; color: var(--btn);
+      word-break: break-all; text-align: center;
+      background: rgba(255,255,255,0.06);
+      border-radius: 10px; padding: 10px 16px; width: 100%;
     }
     .btn-row { display: flex; gap: 10px; width: 100%; }
     .btn {
       flex: 1; border: none; border-radius: 12px;
-      padding: 13px; font-size: 15px; font-weight: 600;
-      cursor: pointer; transition: opacity 0.1s;
+      padding: 14px; font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.1s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
     }
-    .btn:active { opacity: 0.7; }
-    .btn-primary { background: var(--btn); color: var(--btn-text); }
+    .btn:active { opacity: 0.75; transform: scale(0.97); }
+    .btn-primary   { background: var(--btn); color: var(--btn-text); }
     .btn-secondary { background: rgba(255,255,255,0.09); color: var(--text); }
-
-    /* Debug log — hidden in prod */
-    #log {
-      position: absolute;
-      top: 8px; left: 8px; right: 8px;
-      background: rgba(0,0,0,0.7);
-      color: #0f0;
-      font-size: 10px;
-      padding: 6px 8px;
-      border-radius: 6px;
-      font-family: monospace;
-      z-index: 30;
-      max-height: 90px;
-      overflow: hidden;
-      display: none; /* set to block to debug */
-    }
   </style>
 </head>
 <body>
 
-  <video id="video" autoplay muted playsinline></video>
+  <video id="video" autoplay muted playsinline webkit-playsinline></video>
 
   <div id="overlay">
     <div class="scan-box">
@@ -186,14 +149,14 @@
   </div>
 
   <div id="flash"></div>
-  <div id="log"></div>
 
   <div id="panel">
     <div id="status" class="live">
-      <span class="pulse">●</span> Starting camera…
+      <span class="pulse">●</span>&nbsp;Starting camera…
     </div>
+
     <div id="result">
-      <div class="barcode-num" id="barcode-num"></div>
+      <div class="barcode-num" id="barcode-num">—</div>
       <div class="btn-row">
         <button class="btn btn-primary"   id="btn-send">✅ Send to Bot</button>
         <button class="btn btn-secondary" id="btn-again">🔄 Scan Again</button>
@@ -211,20 +174,16 @@
     const resultEl  = document.getElementById('result');
     const barcodeEl = document.getElementById('barcode-num');
     const flash     = document.getElementById('flash');
-    const logEl     = document.getElementById('log');
     const btnSend   = document.getElementById('btn-send');
     const btnAgain  = document.getElementById('btn-again');
 
-    let detecting   = false;
-    let lastBarcode = null;
-    let rafId       = null;
-    let detector    = null;
     let stream      = null;
+    let detecting   = false;
+    let rafId       = null;
+    let lastBarcode = null;
+    let zxingReader = null;
 
-    function log(msg) {
-      logEl.textContent = msg + '\n' + logEl.textContent;
-    }
-
+    // ── Helpers ───────────────────────────────────────────────
     function setStatus(html, cls = 'live') {
       statusEl.className = 'status ' + cls;
       statusEl.innerHTML = html;
@@ -232,105 +191,161 @@
 
     function doFlash() {
       flash.classList.add('on');
-      setTimeout(() => flash.classList.remove('on'), 120);
+      setTimeout(() => flash.classList.remove('on'), 130);
     }
 
-    function onFound(code) {
-      if (!detecting) return;
-      detecting = false;
-      if (rafId) cancelAnimationFrame(rafId);
-
-      lastBarcode = code.trim();
-      log('Found: ' + lastBarcode);
-
-      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-      doFlash();
-
+    function showResult(code) {
+      detecting       = false;
+      lastBarcode     = code.trim();
       barcodeEl.textContent   = lastBarcode;
       resultEl.style.display  = 'flex';
       setStatus('✅ Barcode detected!', 'found');
+      doFlash();
+      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
     }
 
-    // ── Scan loop using BarcodeDetector ──────────────────────
-    async function scanLoop() {
-      if (!detecting) return;
-      if (video.readyState < 2) {
-        rafId = requestAnimationFrame(scanLoop);
-        return;
-      }
-      try {
-        const barcodes = await detector.detect(video);
-        if (barcodes.length > 0) {
-          onFound(barcodes[0].rawValue);
-          return;
-        }
-      } catch (e) {
-        log('detect err: ' + e.message);
-      }
-      rafId = requestAnimationFrame(scanLoop);
+    // ── Get camera stream ─────────────────────────────────────
+    async function getStream() {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width:  { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
     }
 
-    // ── Start camera + detector ───────────────────────────────
-    async function start() {
-      resultEl.style.display = 'none';
-      lastBarcode  = null;
-      detecting    = false;
-      if (rafId) cancelAnimationFrame(rafId);
-
-      setStatus('<span class="pulse">●</span> Starting camera…', 'live');
-
-      // ── Step 1: check BarcodeDetector support ──
-      if (!('BarcodeDetector' in window)) {
-        log('BarcodeDetector not supported');
-        setStatus('❌ Live scanning not supported on this device/browser', 'err');
-        return;
-      }
-
-      // ── Step 2: get supported formats ──
+    // ── Android: BarcodeDetector (native, fast) ───────────────
+    async function startAndroid() {
       let formats;
       try {
         formats = await BarcodeDetector.getSupportedFormats();
-        log('Formats: ' + formats.join(', '));
       } catch(e) {
         formats = ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','data_matrix'];
       }
 
-      detector = new BarcodeDetector({ formats });
+      const detector = new BarcodeDetector({ formats });
 
-      // ── Step 3: get camera stream ──
+      async function loop() {
+        if (!detecting) return;
+        if (video.readyState >= 2) {
+          try {
+            const results = await detector.detect(video);
+            if (results.length > 0) {
+              showResult(results[0].rawValue);
+              return;
+            }
+          } catch(e) {}
+        }
+        rafId = requestAnimationFrame(loop);
+      }
+
+      detecting = true;
+      setStatus('<span class="pulse">●</span>&nbsp;Align barcode in frame', 'live');
+      loop();
+    }
+
+    // ── iOS: ZXing continuous decode ──────────────────────────
+    function startIOS() {
+      zxingReader = new ZXing.BrowserMultiFormatReader();
+
+      const hints = new Map();
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.EAN_13,
+        ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.CODE_128,
+        ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.UPC_A,
+        ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.ITF,
+        ZXing.BarcodeFormat.DATA_MATRIX,
+        ZXing.BarcodeFormat.QR_CODE,
+      ]);
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      zxingReader.hints = hints;
+
+      detecting = true;
+      setStatus('<span class="pulse">●</span>&nbsp;Align barcode in frame', 'live');
+
+      zxingReader.decodeFromStream(stream, video, (result, err) => {
+        if (!detecting) return;
+        if (result) {
+          if (zxingReader) zxingReader.reset();
+          showResult(result.getText());
+        }
+        // errors on empty frames are normal — ignore
+      });
+    }
+
+    // ── Main start ────────────────────────────────────────────
+    async function start() {
+      // Reset UI
+      resultEl.style.display = 'none';
+      lastBarcode  = null;
+      detecting    = false;
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      if (zxingReader) { try { zxingReader.reset(); } catch(e){} zxingReader = null; }
+
+      setStatus('<span class="pulse">●</span>&nbsp;Starting camera…', 'live');
+
       try {
-        if (stream) stream.getTracks().forEach(t => t.stop());
-
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width:  { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-          audio: false
-        });
-
-        video.srcObject = stream;
-        await video.play();
-        log('Camera started');
-
-        setStatus('<span class="pulse">●</span> Align barcode in frame', 'live');
-        detecting = true;
-        scanLoop();
-
+        await getStream();
       } catch(err) {
-        log('Camera err: ' + err.name + ' ' + err.message);
         if (err.name === 'NotAllowedError') {
-          setStatus('❌ Camera permission denied — check Telegram settings', 'err');
+          setStatus('❌ Camera permission denied.<br>Go to Phone Settings → Apps → Telegram → Permissions → Camera → Allow', 'err');
         } else {
           setStatus('❌ Camera error: ' + err.message, 'err');
         }
+        return;
+      }
+
+      // Choose engine based on platform
+      const isAndroid = /android/i.test(navigator.userAgent);
+      const hasBarcodeDetector = 'BarcodeDetector' in window;
+
+      if (hasBarcodeDetector) {
+        // Android Chrome / Telegram WebView
+        await startAndroid();
+      } else {
+        // iOS Safari / Telegram iOS — use ZXing
+        startIOS();
       }
     }
 
-    btnSend.addEventListener('click',  () => { if (lastBarcode) tg.sendData(lastBarcode); });
+    // ── Send barcode to bot ───────────────────────────────────
+    // Using touchstart so it fires instantly on mobile (no 300ms delay)
+    btnSend.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (!lastBarcode) return;
+      try {
+        tg.sendData(lastBarcode);
+      } catch(err) {
+        // Fallback: show alert with value if sendData fails
+        alert('Barcode: ' + lastBarcode + '\n\nCopy and send this number to the bot.');
+      }
+    });
+
+    // Also handle click for desktop testing
+    btnSend.addEventListener('click', () => {
+      if (!lastBarcode) return;
+      try {
+        tg.sendData(lastBarcode);
+      } catch(err) {
+        alert('Barcode: ' + lastBarcode);
+      }
+    });
+
+    btnAgain.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      start();
+    });
     btnAgain.addEventListener('click', () => start());
 
+    // Auto-start
     start();
   </script>
 </body>
