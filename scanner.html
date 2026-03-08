@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ERPNext Barcode Scanner</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #0f0f1a);
+      --text: var(--tg-theme-text-color, #ffffff);
+      --hint: var(--tg-theme-hint-color, #aaaaaa);
+      --btn: var(--tg-theme-button-color, #3390ec);
+      --btn-text: var(--tg-theme-button-text-color, #ffffff);
+      --secondary-bg: var(--tg-theme-secondary-bg-color, #1c1c2e);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 20px;
+      text-align: center;
+    }
+    .logo { font-size: 64px; margin-bottom: 16px; animation: float 3s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .subtitle { font-size: 14px; color: var(--hint); margin-bottom: 40px; line-height: 1.5; }
+    .scan-btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: var(--btn); color: var(--btn-text); border: none;
+      border-radius: 14px; padding: 16px 32px; font-size: 17px; font-weight: 600;
+      cursor: pointer; width: 100%; max-width: 320px;
+      transition: opacity 0.15s, transform 0.1s;
+      box-shadow: 0 4px 20px rgba(51,144,236,0.35);
+    }
+    .scan-btn:active { opacity: 0.85; transform: scale(0.97); }
+    .scan-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
+    #result {
+      display: none; width: 100%; max-width: 340px;
+      background: var(--secondary-bg); border-radius: 18px; padding: 20px;
+      margin-top: 24px; text-align: left; border: 1px solid rgba(255,255,255,0.07);
+    }
+    #result .result-label { font-size: 11px; color: var(--hint); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    #result .result-code { font-size: 24px; font-weight: 700; letter-spacing: 2px; color: var(--btn); margin-bottom: 16px; word-break: break-all; }
+    .action-row { display: flex; gap: 10px; }
+    .btn-confirm {
+      flex: 1; background: var(--btn); color: var(--btn-text); border: none;
+      border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    .btn-again {
+      flex: 1; background: rgba(255,255,255,0.08); color: var(--text); border: none;
+      border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    .btn-confirm:active, .btn-again:active { opacity: 0.7; }
+    #not-supported {
+      display: none; background: rgba(231,76,60,0.15); border: 1px solid rgba(231,76,60,0.3);
+      border-radius: 14px; padding: 16px 20px; font-size: 14px; color: #e74c3c;
+      margin-top: 20px; max-width: 320px; line-height: 1.5;
+    }
+    .tip { font-size: 12px; color: var(--hint); margin-top: 24px; max-width: 280px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="logo">📦</div>
+  <h1>ERPNext Scanner</h1>
+  <p class="subtitle">Scan any barcode or QR code<br>to look up item details instantly</p>
+
+  <button class="scan-btn" id="scanBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+      <line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="8" x2="12" y2="16"/>
+    </svg>
+    Open Camera Scanner
+  </button>
+
+  <div id="result">
+    <div class="result-label">Barcode detected</div>
+    <div class="result-code" id="resultCode"></div>
+    <div class="action-row">
+      <button class="btn-confirm" id="btnSend">✅ Send to Bot</button>
+      <button class="btn-again" id="btnAgain">🔄 Scan Again</button>
+    </div>
+  </div>
+
+  <div id="not-supported">
+    ⚠️ QR scanning requires Telegram mobile app (Android/iOS).<br><br>
+    Please open this bot on your phone, not Telegram Web.
+  </div>
+
+  <p class="tip" id="tip">Supports EAN-13, EAN-8, Code 128, QR Code, and more</p>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+    tg.ready();
+
+    let scannedBarcode = null;
+    const scanBtn = document.getElementById("scanBtn");
+    const resultDiv = document.getElementById("result");
+    const resultCode = document.getElementById("resultCode");
+    const btnSend = document.getElementById("btnSend");
+    const btnAgain = document.getElementById("btnAgain");
+    const notSupported = document.getElementById("not-supported");
+    const tip = document.getElementById("tip");
+
+    function openScanner() {
+      if (!tg.showScanQrPopup) {
+        notSupported.style.display = "block";
+        scanBtn.style.display = "none";
+        tip.style.display = "none";
+        return;
+      }
+      tg.showScanQrPopup({ text: "Point camera at a barcode" }, function(data) {
+        scannedBarcode = data.trim();
+        tg.closeScanQrPopup();
+        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+        resultCode.textContent = scannedBarcode;
+        resultDiv.style.display = "block";
+        scanBtn.style.display = "none";
+        tip.style.display = "none";
+        return true;
+      });
+    }
+
+    btnSend.addEventListener("click", () => { if (scannedBarcode) tg.sendData(scannedBarcode); });
+    btnAgain.addEventListener("click", () => {
+      scannedBarcode = null;
+      resultDiv.style.display = "none";
+      scanBtn.style.display = "flex";
+      tip.style.display = "block";
+      openScanner();
+    });
+    scanBtn.addEventListener("click", openScanner);
+  </script>
+</body>
+</html>
