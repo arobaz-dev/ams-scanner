@@ -30,86 +30,111 @@
       width: 100%;
       object-fit: cover;
       display: block;
+      min-height: 0;
     }
     #overlay {
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       pointer-events: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
     }
     .scan-box {
-      position: relative;
-      width: 78%;
-      height: 110px;
+      position: relative; width: 78%; height: 110px;
       border-radius: 10px;
       box-shadow: 0 0 0 2000px rgba(0,0,0,0.5);
     }
     .corner { position: absolute; width: 24px; height: 24px; border-color: #fff; border-style: solid; }
-    .corner.tl { top:-2px;    left:-2px;  border-width: 3px 0 0 3px; border-radius: 6px 0 0 0; }
-    .corner.tr { top:-2px;    right:-2px; border-width: 3px 3px 0 0; border-radius: 0 6px 0 0; }
-    .corner.bl { bottom:-2px; left:-2px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 6px; }
-    .corner.br { bottom:-2px; right:-2px; border-width: 0 3px 3px 0; border-radius: 0 0 6px 0; }
+    .corner.tl { top:-2px;    left:-2px;  border-width:3px 0 0 3px; border-radius:6px 0 0 0; }
+    .corner.tr { top:-2px;    right:-2px; border-width:3px 3px 0 0; border-radius:0 6px 0 0; }
+    .corner.bl { bottom:-2px; left:-2px;  border-width:0 0 3px 3px; border-radius:0 0 0 6px; }
+    .corner.br { bottom:-2px; right:-2px; border-width:0 3px 3px 0; border-radius:0 0 6px 0; }
     .scanline {
-      position: absolute; left: 6px; right: 6px; height: 2px;
+      position: absolute; left:6px; right:6px; height:2px;
       background: linear-gradient(90deg, transparent, var(--btn) 20%, var(--btn) 80%, transparent);
-      animation: sweep 2s ease-in-out infinite; border-radius: 2px;
+      animation: sweep 2s ease-in-out infinite; border-radius:2px;
     }
     @keyframes sweep {
-      0%   { top: 4px; opacity: 0; }
-      10%  { opacity: 1; }
-      90%  { opacity: 1; }
-      100% { top: calc(100% - 4px); opacity: 0; }
+      0%   { top:4px; opacity:0; }
+      10%  { opacity:1; }
+      90%  { opacity:1; }
+      100% { top:calc(100% - 4px); opacity:0; }
     }
     #flash {
-      position: absolute; inset: 0; background: #fff; opacity: 0;
-      pointer-events: none; z-index: 10; transition: opacity 0.05s;
+      position:absolute; inset:0; background:#fff; opacity:0;
+      pointer-events:none; z-index:10; transition:opacity 0.05s;
     }
-    #flash.on { opacity: 0.4; }
+    #flash.on { opacity:0.4; }
 
-    /* Panel */
+    /* ── Panel ── */
     #panel {
       background: var(--secondary-bg);
       border-top: 1px solid rgba(255,255,255,0.08);
-      padding: 16px 18px 36px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 14px;
+      padding: 16px 16px 36px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 14px;
       z-index: 20;
     }
     #status {
-      font-size: 14px; font-weight: 500;
-      color: var(--hint); text-align: center;
-      display: flex; align-items: center; gap: 8px; min-height: 22px;
+      font-size:13px; font-weight:500; color:var(--hint);
+      text-align:center; min-height:20px;
+      display:flex; align-items:center; gap:7px;
     }
-    #status.live  { color: var(--btn); }
-    #status.found { color: #2ecc71; }
-    #status.err   { color: #e74c3c; }
-    #status.sending { color: #f39c12; }
-    .pulse { animation: pulse 1.2s ease-in-out infinite; }
+    #status.live  { color:var(--btn); }
+    #status.found { color:#2ecc71; }
+    #status.err   { color:#e74c3c; }
+    .pulse { animation:pulse 1.2s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
 
-    #result { display: none; flex-direction: column; align-items: center; gap: 12px; width: 100%; }
+    /* ── Barcode result ── */
+    #result { display:none; flex-direction:column; align-items:center; gap:12px; width:100%; }
 
-    .barcode-num {
-      font-size: 22px; font-weight: 700; letter-spacing: 3px;
-      color: var(--btn); word-break: break-all; text-align: center;
+    .barcode-box {
+      width: 100%;
       background: rgba(255,255,255,0.06);
-      border-radius: 10px; padding: 12px 16px; width: 100%;
-    }
-    .btn-row { display: flex; gap: 10px; width: 100%; }
-    .btn {
-      flex: 1; border: none; border-radius: 12px;
-      padding: 15px; font-size: 16px; font-weight: 600;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 14px 16px;
+      text-align: center;
       cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;   /* removes 300ms delay properly */
+      touch-action: manipulation;
     }
-    .btn-primary   { background: var(--btn); color: var(--btn-text); }
-    .btn-secondary { background: rgba(255,255,255,0.09); color: var(--text); }
-    .btn:disabled  { opacity: 0.4; }
+    .barcode-label {
+      font-size: 10px; color: var(--hint);
+      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;
+    }
+    .barcode-value {
+      font-size: 26px; font-weight: 700;
+      letter-spacing: 3px; color: var(--btn);
+      word-break: break-all;
+    }
+    .copy-hint {
+      font-size: 11px; color: var(--hint); margin-top: 5px;
+    }
+
+    /* Copy confirmation */
+    #copied {
+      display:none;
+      background: #2ecc71;
+      color: #fff;
+      font-size: 14px; font-weight: 600;
+      padding: 8px 20px;
+      border-radius: 20px;
+      animation: fadeout 1.5s forwards;
+    }
+    @keyframes fadeout {
+      0%,60%  { opacity:1; }
+      100%    { opacity:0; }
+    }
+
+    .btn-row { display:flex; gap:10px; width:100%; }
+    .btn {
+      flex:1; border:none; border-radius:12px;
+      padding:14px; font-size:15px; font-weight:600;
+      cursor:pointer; touch-action:manipulation;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .btn:active { opacity:0.7; }
+    .btn-primary   { background:var(--btn); color:var(--btn-text); }
+    .btn-secondary { background:rgba(255,255,255,0.09); color:var(--text); }
   </style>
 </head>
 <body>
@@ -123,17 +148,25 @@
       <div class="scanline"></div>
     </div>
   </div>
-
   <div id="flash"></div>
 
   <div id="panel">
     <div id="status" class="live">
-      <span class="pulse">●</span>&nbsp;Starting camera…
+      <span class="pulse">●</span>&nbsp;Align barcode in frame
     </div>
+
     <div id="result">
-      <div class="barcode-num" id="barcode-num"></div>
+      <!-- Tap to copy -->
+      <div class="barcode-box" id="barcode-box">
+        <div class="barcode-label">Barcode detected — tap to copy</div>
+        <div class="barcode-value" id="barcode-value"></div>
+        <div class="copy-hint">👆 Tap to copy</div>
+      </div>
+
+      <div id="copied">✅ Copied!</div>
+
       <div class="btn-row">
-        <button class="btn btn-primary"   id="btn-send">✅ Send to Bot</button>
+        <button class="btn btn-primary"   id="btn-close">Close & Paste</button>
         <button class="btn btn-secondary" id="btn-again">🔄 Scan Again</button>
       </div>
     </div>
@@ -144,92 +177,103 @@
     tg.expand();
     tg.ready();
 
-    const video     = document.getElementById('video');
-    const statusEl  = document.getElementById('status');
-    const resultEl  = document.getElementById('result');
-    const barcodeEl = document.getElementById('barcode-num');
-    const flash     = document.getElementById('flash');
-    const btnSend   = document.getElementById('btn-send');
-    const btnAgain  = document.getElementById('btn-again');
+    const video      = document.getElementById('video');
+    const statusEl   = document.getElementById('status');
+    const resultEl   = document.getElementById('result');
+    const barcodeVal = document.getElementById('barcode-value');
+    const barcodeBox = document.getElementById('barcode-box');
+    const copiedEl   = document.getElementById('copied');
+    const btnClose   = document.getElementById('btn-close');
+    const btnAgain   = document.getElementById('btn-again');
+    const flash      = document.getElementById('flash');
 
     let stream      = null;
     let detecting   = false;
     let rafId       = null;
     let zxingReader = null;
     let lastBarcode = null;
-    let sent        = false;   // guard against double-send
 
-    function setStatus(html, cls = 'live') {
+    function setStatus(html, cls='live') {
       statusEl.className = 'status ' + cls;
       statusEl.innerHTML = html;
     }
 
     function doFlash() {
       flash.classList.add('on');
-      setTimeout(() => flash.classList.remove('on'), 130);
+      setTimeout(() => flash.classList.remove('on'), 120);
+    }
+
+    function copyBarcode() {
+      if (!lastBarcode) return;
+      navigator.clipboard.writeText(lastBarcode).then(() => {
+        copiedEl.style.display = 'block';
+        // Re-trigger animation
+        copiedEl.style.animation = 'none';
+        copiedEl.offsetHeight; // reflow
+        copiedEl.style.animation = 'fadeout 1.5s forwards';
+        setTimeout(() => { copiedEl.style.display = 'none'; }, 1500);
+        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+      }).catch(() => {
+        // Fallback for browsers that block clipboard
+        const el = document.createElement('textarea');
+        el.value = lastBarcode;
+        el.style.position = 'fixed';
+        el.style.opacity = '0';
+        document.body.appendChild(el);
+        el.focus(); el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        copiedEl.style.display = 'block';
+        setTimeout(() => { copiedEl.style.display = 'none'; }, 1500);
+      });
     }
 
     function showResult(code) {
-      if (!detecting) return;   // already found one
-      detecting = false;
-      sent = false;
+      if (!detecting) return;
+      detecting   = false;
+      lastBarcode = code.trim();
 
       if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      if (zxingReader) { try { zxingReader.reset(); } catch(e){} }
 
-      lastBarcode = code.trim();
-      barcodeEl.textContent  = lastBarcode;
-      resultEl.style.display = 'flex';
-      btnSend.disabled = false;
-
-      setStatus('✅ Barcode: ' + lastBarcode, 'found');
       doFlash();
       if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+
+      barcodeVal.textContent  = lastBarcode;
+      resultEl.style.display  = 'flex';
+      setStatus('✅ Barcode found!', 'found');
+
+      // Auto-copy immediately so user just has to paste
+      navigator.clipboard.writeText(lastBarcode).catch(() => {});
     }
 
-    // ── Send to bot ───────────────────────────────────────────
-    // touch-action: manipulation on the button handles the delay.
-    // We use a 'sent' flag so double-tap can't fire twice.
-    btnSend.addEventListener('click', function() {
-      if (sent || !lastBarcode) return;
-      sent = true;
-      btnSend.disabled = true;
-      setStatus('📤 Sending…', 'sending');
+    // Tap barcode box to copy
+    barcodeBox.addEventListener('click', copyBarcode);
 
-      try {
-        tg.sendData(lastBarcode);
-        tg.close();           // explicitly close the mini app after sending
-      } catch(e) {
-        setStatus('⚠️ Could not send. Barcode: ' + lastBarcode, 'err');
-        sent = false;
-        btnSend.disabled = false;
-      }
+    // Close mini app (barcode already auto-copied)
+    btnClose.addEventListener('click', () => {
+      copyBarcode();
+      setTimeout(() => tg.close(), 300);
     });
 
     btnAgain.addEventListener('click', () => start());
 
-    // ── Camera ────────────────────────────────────────────────
+    // ── Camera ────────────────────────────────────────
     async function getStream() {
       if (stream) stream.getTracks().forEach(t => t.stop());
       stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width:  { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
+        video: { facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
         audio: false
       });
       video.srcObject = stream;
       await video.play();
     }
 
-    // ── Android: native BarcodeDetector ──────────────────────
     async function runAndroid() {
       let formats;
       try { formats = await BarcodeDetector.getSupportedFormats(); }
-      catch(e) { formats = ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','data_matrix']; }
-
+      catch(e) { formats = ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf']; }
       const detector = new BarcodeDetector({ formats });
-
       async function loop() {
         if (!detecting) return;
         if (video.readyState >= 2) {
@@ -240,72 +284,45 @@
         }
         rafId = requestAnimationFrame(loop);
       }
-
       detecting = true;
       loop();
     }
 
-    // ── iOS: ZXing continuous from stream ─────────────────────
     function runIOS() {
       if (zxingReader) { try { zxingReader.reset(); } catch(e){} }
-
       zxingReader = new ZXing.BrowserMultiFormatReader();
-
       const hints = new Map();
       hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-        ZXing.BarcodeFormat.EAN_13,
-        ZXing.BarcodeFormat.EAN_8,
-        ZXing.BarcodeFormat.CODE_128,
-        ZXing.BarcodeFormat.CODE_39,
-        ZXing.BarcodeFormat.UPC_A,
-        ZXing.BarcodeFormat.UPC_E,
-        ZXing.BarcodeFormat.ITF,
-        ZXing.BarcodeFormat.DATA_MATRIX,
+        ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
+        ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.ITF, ZXing.BarcodeFormat.DATA_MATRIX,
       ]);
       hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
       zxingReader.hints = hints;
-
       detecting = true;
-
-      zxingReader.decodeFromStream(stream, video, (result, err) => {
-        if (!detecting) return;
-        if (result) {
-          try { zxingReader.reset(); } catch(e) {}
-          showResult(result.getText());
-        }
+      zxingReader.decodeFromStream(stream, video, (result) => {
+        if (!detecting || !result) return;
+        onBarcode(result.getText());
       });
     }
 
-    // ── Main ──────────────────────────────────────────────────
     async function start() {
-      // Reset everything
       resultEl.style.display = 'none';
       lastBarcode = null;
-      sent        = false;
       detecting   = false;
       if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
       if (zxingReader) { try { zxingReader.reset(); } catch(e){} zxingReader = null; }
 
       setStatus('<span class="pulse">●</span>&nbsp;Starting camera…', 'live');
-
       try {
         await getStream();
       } catch(err) {
-        if (err.name === 'NotAllowedError') {
-          setStatus('❌ Camera denied — allow in Telegram settings then reopen', 'err');
-        } else {
-          setStatus('❌ Camera error: ' + err.message, 'err');
-        }
+        setStatus('❌ Camera denied — allow in Telegram settings', 'err');
         return;
       }
-
       setStatus('<span class="pulse">●</span>&nbsp;Align barcode in frame', 'live');
-
-      if ('BarcodeDetector' in window) {
-        await runAndroid();   // Android / Chrome
-      } else {
-        runIOS();             // iPhone / ZXing
-      }
+      'BarcodeDetector' in window ? runAndroid() : runIOS();
     }
 
     start();
