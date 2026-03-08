@@ -197,8 +197,8 @@
 
       try {
         tg.sendData(lastBarcode);
+        tg.close();           // explicitly close the mini app after sending
       } catch(e) {
-        // sendData failed — show the barcode so user can type it
         setStatus('⚠️ Could not send. Barcode: ' + lastBarcode, 'err');
         sent = false;
         btnSend.disabled = false;
