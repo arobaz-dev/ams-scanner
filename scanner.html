@@ -5,234 +5,198 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Barcode Scanner</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
   <style>
     :root {
-      --bg:   var(--tg-theme-bg-color, #111118);
-      --text: var(--tg-theme-text-color, #ffffff);
-      --hint: var(--tg-theme-hint-color, #888888);
-      --btn:  var(--tg-theme-button-color, #3390ec);
+      --btn: var(--tg-theme-button-color, #3390ec);
       --btn-text: var(--tg-theme-button-text-color, #ffffff);
+      --bg: var(--tg-theme-bg-color, #111118);
+      --text: var(--tg-theme-text-color, #ffffff);
+      --hint: var(--tg-theme-hint-color, #888);
       --secondary-bg: var(--tg-theme-secondary-bg-color, #1c1c2a);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg);
+      background: #000;
       color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       height: 100vh;
       display: flex;
       flex-direction: column;
-      align-items: center;
       overflow: hidden;
     }
 
-    /* ── Camera viewport ── */
-    #viewport {
-      position: relative;
-      width: 100%;
+    /* ── Full-screen video ── */
+    #video {
       flex: 1;
-      background: #000;
-      overflow: hidden;
-    }
-
-    /* Quagga injects a <video> and <canvas> here */
-    #viewport video,
-    #viewport canvas {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100% !important;
-      height: 100% !important;
+      width: 100%;
       object-fit: cover;
+      display: block;
+      background: #000;
     }
-
-    /* Hide Quagga's debug canvas by default */
-    #viewport canvas.drawingBuffer { display: none; }
 
     /* ── Targeting overlay ── */
-    .overlay {
+    #overlay {
       position: absolute;
       inset: 0;
       pointer-events: none;
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 10;
     }
 
-    .scan-zone {
-      width: 80%;
-      height: 22%;
-      position: relative;
-      border-radius: 8px;
-      box-shadow: 0 0 0 2000px rgba(0,0,0,0.52);
-    }
-
-    /* Corner brackets */
-    .c { position: absolute; width: 22px; height: 22px; border-color: #fff; border-style: solid; }
-    .tl { top: -2px; left: -2px;  border-width: 3px 0 0 3px; border-radius: 5px 0 0 0; }
-    .tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-radius: 0 5px 0 0; }
-    .bl { bottom: -2px; left: -2px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 5px; }
-    .br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 5px 0; }
-
-    /* Animated scan line */
-    .scan-line {
+    .dimmer-top, .dimmer-bottom, .dimmer-left, .dimmer-right {
       position: absolute;
-      left: 6px; right: 6px; height: 2px;
-      background: linear-gradient(90deg, transparent, var(--btn) 30%, var(--btn) 70%, transparent);
-      border-radius: 2px;
+      background: rgba(0,0,0,0.5);
+    }
+    /* These four divs create the "hole" in the middle */
+
+    .scan-box {
+      position: relative;
+      width: 78%;
+      height: 120px;
+      border-radius: 10px;
+      z-index: 2;
+    }
+
+    /* Corners */
+    .corner {
+      position: absolute;
+      width: 24px; height: 24px;
+      border-color: #fff;
+      border-style: solid;
+    }
+    .corner.tl { top:-2px; left:-2px;   border-width: 3px 0 0 3px; border-radius: 6px 0 0 0; }
+    .corner.tr { top:-2px; right:-2px;  border-width: 3px 3px 0 0; border-radius: 0 6px 0 0; }
+    .corner.bl { bottom:-2px; left:-2px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 6px; }
+    .corner.br { bottom:-2px; right:-2px; border-width: 0 3px 3px 0; border-radius: 0 0 6px 0; }
+
+    /* Scan line */
+    .scanline {
+      position: absolute;
+      left: 6px; right: 6px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--btn) 20%, var(--btn) 80%, transparent);
       animation: sweep 2s ease-in-out infinite;
+      border-radius: 2px;
     }
     @keyframes sweep {
-      0%   { top: 6px;  opacity: 0; }
+      0%   { top: 4px; opacity: 0; }
       10%  { opacity: 1; }
       90%  { opacity: 1; }
-      100% { top: calc(100% - 6px); opacity: 0; }
+      100% { top: calc(100% - 4px); opacity: 0; }
     }
 
-    /* Flash on detect */
-    .flash {
+    /* Flash */
+    #flash {
       position: absolute;
       inset: 0;
-      background: rgba(255,255,255,0.35);
+      background: #fff;
       opacity: 0;
       pointer-events: none;
-      z-index: 20;
+      z-index: 10;
       transition: opacity 0.05s;
     }
-    .flash.active { opacity: 1; }
+    #flash.on { opacity: 0.5; }
 
     /* ── Bottom panel ── */
     #panel {
-      width: 100%;
       background: var(--secondary-bg);
-      border-top: 1px solid rgba(255,255,255,0.07);
-      padding: 14px 18px 22px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding: 14px 18px 28px;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 12px;
-      z-index: 30;
+      position: relative;
+      z-index: 20;
     }
 
     #status {
       font-size: 14px;
-      color: var(--hint);
       font-weight: 500;
+      color: var(--hint);
       text-align: center;
       display: flex;
       align-items: center;
       gap: 8px;
-      min-height: 22px;
     }
-    #status.scanning { color: var(--btn); }
-    #status.found    { color: #27ae60; }
-    #status.error    { color: #e74c3c; }
+    #status.live    { color: var(--btn); }
+    #status.found   { color: #2ecc71; }
+    #status.err     { color: #e74c3c; }
 
-    .dot { display: inline-block; animation: blink 1s infinite; }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+    .pulse { animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-    /* Result row — shown after detection */
-    #result-row {
+    /* Result */
+    #result {
       display: none;
-      width: 100%;
       flex-direction: column;
-      gap: 10px;
       align-items: center;
-    }
-
-    .barcode-display {
-      background: rgba(255,255,255,0.06);
-      border-radius: 10px;
-      padding: 10px 16px;
+      gap: 10px;
       width: 100%;
-      text-align: center;
-      font-size: 22px;
+    }
+    .barcode-num {
+      font-size: 24px;
       font-weight: 700;
-      letter-spacing: 2px;
+      letter-spacing: 3px;
       color: var(--btn);
       word-break: break-all;
+      text-align: center;
     }
-
     .btn-row { display: flex; gap: 10px; width: 100%; }
     .btn {
       flex: 1; border: none; border-radius: 12px;
       padding: 13px; font-size: 15px; font-weight: 600;
-      cursor: pointer; transition: opacity 0.15s;
+      cursor: pointer; transition: opacity 0.1s;
     }
     .btn:active { opacity: 0.7; }
-    .btn-send  { background: var(--btn); color: var(--btn-text); }
-    .btn-again { background: rgba(255,255,255,0.09); color: var(--text); }
+    .btn-primary { background: var(--btn); color: var(--btn-text); }
+    .btn-secondary { background: rgba(255,255,255,0.09); color: var(--text); }
 
-    /* ── Permission error ── */
-    #perm-error {
-      display: none;
+    /* Debug log — hidden in prod */
+    #log {
       position: absolute;
-      inset: 0;
-      background: var(--bg);
-      z-index: 40;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 32px 24px;
-      text-align: center;
-      gap: 14px;
-    }
-    #perm-error h2 { font-size: 20px; }
-    #perm-error p  { font-size: 14px; color: var(--hint); line-height: 1.7; }
-    .retry-btn {
-      margin-top: 8px;
-      background: var(--btn);
-      color: var(--btn-text);
-      border: none;
-      border-radius: 12px;
-      padding: 14px 32px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
+      top: 8px; left: 8px; right: 8px;
+      background: rgba(0,0,0,0.7);
+      color: #0f0;
+      font-size: 10px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-family: monospace;
+      z-index: 30;
+      max-height: 90px;
+      overflow: hidden;
+      display: none; /* set to block to debug */
     }
   </style>
 </head>
 <body>
 
-  <!-- Camera area -->
-  <div id="viewport">
-    <div class="overlay">
-      <div class="scan-zone">
-        <div class="c tl"></div>
-        <div class="c tr"></div>
-        <div class="c bl"></div>
-        <div class="c br"></div>
-        <div class="scan-line"></div>
-      </div>
-    </div>
-    <div class="flash" id="flash"></div>
+  <video id="video" autoplay muted playsinline></video>
 
-    <!-- Camera permission error overlay -->
-    <div id="perm-error">
-      <div style="font-size:52px">📷</div>
-      <h2>Camera Access Needed</h2>
-      <p>
-        Please allow camera access when prompted.<br><br>
-        If you already denied it, go to:<br>
-        <strong>Phone Settings → Apps → Telegram → Permissions → Camera → Allow</strong>
-      </p>
-      <button class="retry-btn" onclick="initScanner()">Try Again</button>
+  <div id="overlay">
+    <div class="scan-box">
+      <div class="corner tl"></div>
+      <div class="corner tr"></div>
+      <div class="corner bl"></div>
+      <div class="corner br"></div>
+      <div class="scanline"></div>
     </div>
   </div>
 
-  <!-- Bottom panel -->
-  <div id="panel">
-    <div id="status" class="scanning">
-      <span class="dot">●</span> Starting camera…
-    </div>
+  <div id="flash"></div>
+  <div id="log"></div>
 
-    <div id="result-row">
-      <div class="barcode-display" id="barcode-val"></div>
+  <div id="panel">
+    <div id="status" class="live">
+      <span class="pulse">●</span> Starting camera…
+    </div>
+    <div id="result">
+      <div class="barcode-num" id="barcode-num"></div>
       <div class="btn-row">
-        <button class="btn btn-send"  id="btn-send">✅ Send to Bot</button>
-        <button class="btn btn-again" id="btn-again">🔄 Scan Again</button>
+        <button class="btn btn-primary"   id="btn-send">✅ Send to Bot</button>
+        <button class="btn btn-secondary" id="btn-again">🔄 Scan Again</button>
       </div>
     </div>
   </div>
@@ -242,128 +206,132 @@
     tg.expand();
     tg.ready();
 
-    const statusEl   = document.getElementById('status');
-    const resultRow  = document.getElementById('result-row');
-    const barcodeVal = document.getElementById('barcode-val');
-    const btnSend    = document.getElementById('btn-send');
-    const btnAgain   = document.getElementById('btn-again');
-    const flash      = document.getElementById('flash');
-    const permError  = document.getElementById('perm-error');
+    const video     = document.getElementById('video');
+    const statusEl  = document.getElementById('status');
+    const resultEl  = document.getElementById('result');
+    const barcodeEl = document.getElementById('barcode-num');
+    const flash     = document.getElementById('flash');
+    const logEl     = document.getElementById('log');
+    const btnSend   = document.getElementById('btn-send');
+    const btnAgain  = document.getElementById('btn-again');
 
-    let lastBarcode  = null;
-    let running      = false;
+    let detecting   = false;
+    let lastBarcode = null;
+    let rafId       = null;
+    let detector    = null;
+    let stream      = null;
 
-    // Debounce — ignore repeated reads of same barcode
-    let lastRead = '';
-    let lastReadTime = 0;
+    function log(msg) {
+      logEl.textContent = msg + '\n' + logEl.textContent;
+    }
 
-    function setStatus(html, type = '') {
-      statusEl.className = 'status ' + type;
+    function setStatus(html, cls = 'live') {
+      statusEl.className = 'status ' + cls;
       statusEl.innerHTML = html;
     }
 
     function doFlash() {
-      flash.classList.add('active');
-      setTimeout(() => flash.classList.remove('active'), 120);
+      flash.classList.add('on');
+      setTimeout(() => flash.classList.remove('on'), 120);
     }
 
-    function onDetected(result) {
-      const code = result.codeResult.code;
-      const now  = Date.now();
+    function onFound(code) {
+      if (!detecting) return;
+      detecting = false;
+      if (rafId) cancelAnimationFrame(rafId);
 
-      // Debounce: same code within 2 seconds = ignore
-      if (code === lastRead && now - lastReadTime < 2000) return;
-      lastRead     = code;
-      lastReadTime = now;
-
-      if (!running) return;
-      running = false;
-
-      Quagga.stop();
+      lastBarcode = code.trim();
+      log('Found: ' + lastBarcode);
 
       if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
       doFlash();
 
-      lastBarcode = code.trim();
-      barcodeVal.textContent = lastBarcode;
-      resultRow.style.display = 'flex';
-      setStatus('✅ Barcode found!', 'found');
+      barcodeEl.textContent   = lastBarcode;
+      resultEl.style.display  = 'flex';
+      setStatus('✅ Barcode detected!', 'found');
     }
 
-    function initScanner() {
-      permError.style.display = 'none';
-      resultRow.style.display = 'none';
-      lastBarcode = null;
-      running     = false;
-      setStatus('<span class="dot">●</span> Starting camera…', 'scanning');
-
-      Quagga.init({
-        inputStream: {
-          name: 'Live',
-          type: 'LiveStream',
-          target: document.getElementById('viewport'),
-          constraints: {
-            facingMode: 'environment',   // rear camera
-            width:  { min: 640, ideal: 1280 },
-            height: { min: 480, ideal: 720 },
-          },
-          area: {
-            // Only scan the middle strip — faster & more accurate
-            top:    '35%',
-            right:  '10%',
-            bottom: '35%',
-            left:   '10%',
-          },
-        },
-        decoder: {
-          readers: [
-            'ean_reader',        // EAN-13 (most common product barcodes)
-            'ean_8_reader',      // EAN-8
-            'code_128_reader',   // Code 128
-            'code_39_reader',    // Code 39
-            'upc_reader',        // UPC-A
-            'upc_e_reader',      // UPC-E
-            'i2of5_reader',      // Interleaved 2 of 5
-          ],
-        },
-        locate: true,
-        numOfWorkers: 2,
-        frequency: 15,           // scan attempts per second
-      },
-      function(err) {
-        if (err) {
-          console.error('Quagga init error:', err);
-          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError' ||
-              String(err).includes('Permission') || String(err).includes('denied')) {
-            permError.style.display = 'flex';
-            setStatus('❌ Camera permission denied', 'error');
-          } else {
-            setStatus('❌ Camera error: ' + (err.message || err), 'error');
-          }
+    // ── Scan loop using BarcodeDetector ──────────────────────
+    async function scanLoop() {
+      if (!detecting) return;
+      if (video.readyState < 2) {
+        rafId = requestAnimationFrame(scanLoop);
+        return;
+      }
+      try {
+        const barcodes = await detector.detect(video);
+        if (barcodes.length > 0) {
+          onFound(barcodes[0].rawValue);
           return;
         }
-
-        Quagga.start();
-        running = true;
-        setStatus('<span class="dot">●</span> Align barcode in frame', 'scanning');
-      });
-
-      Quagga.offDetected();   // clear old listeners
-      Quagga.onDetected(onDetected);
+      } catch (e) {
+        log('detect err: ' + e.message);
+      }
+      rafId = requestAnimationFrame(scanLoop);
     }
 
-    btnSend.addEventListener('click', () => {
-      if (lastBarcode) tg.sendData(lastBarcode);
-    });
+    // ── Start camera + detector ───────────────────────────────
+    async function start() {
+      resultEl.style.display = 'none';
+      lastBarcode  = null;
+      detecting    = false;
+      if (rafId) cancelAnimationFrame(rafId);
 
-    btnAgain.addEventListener('click', () => {
-      running = false;
-      Quagga.stop();
-      initScanner();
-    });
+      setStatus('<span class="pulse">●</span> Starting camera…', 'live');
 
-    // Start immediately
-    initScanner();
+      // ── Step 1: check BarcodeDetector support ──
+      if (!('BarcodeDetector' in window)) {
+        log('BarcodeDetector not supported');
+        setStatus('❌ Live scanning not supported on this device/browser', 'err');
+        return;
+      }
+
+      // ── Step 2: get supported formats ──
+      let formats;
+      try {
+        formats = await BarcodeDetector.getSupportedFormats();
+        log('Formats: ' + formats.join(', '));
+      } catch(e) {
+        formats = ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','data_matrix'];
+      }
+
+      detector = new BarcodeDetector({ formats });
+
+      // ── Step 3: get camera stream ──
+      try {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width:  { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false
+        });
+
+        video.srcObject = stream;
+        await video.play();
+        log('Camera started');
+
+        setStatus('<span class="pulse">●</span> Align barcode in frame', 'live');
+        detecting = true;
+        scanLoop();
+
+      } catch(err) {
+        log('Camera err: ' + err.name + ' ' + err.message);
+        if (err.name === 'NotAllowedError') {
+          setStatus('❌ Camera permission denied — check Telegram settings', 'err');
+        } else {
+          setStatus('❌ Camera error: ' + err.message, 'err');
+        }
+      }
+    }
+
+    btnSend.addEventListener('click',  () => { if (lastBarcode) tg.sendData(lastBarcode); });
+    btnAgain.addEventListener('click', () => start());
+
+    start();
   </script>
 </body>
 </html>
