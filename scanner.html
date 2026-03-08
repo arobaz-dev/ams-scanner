@@ -3,140 +3,328 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>ERPNext Barcode Scanner</title>
+  <title>AMS Barcode Scanner</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- ZXing: reads EAN-13, EAN-8, Code128, Code39, UPC, ITF, DataMatrix -->
+  <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
   <style>
     :root {
-      --bg: var(--tg-theme-bg-color, #0f0f1a);
+      --bg: var(--tg-theme-bg-color, #111118);
       --text: var(--tg-theme-text-color, #ffffff);
-      --hint: var(--tg-theme-hint-color, #aaaaaa);
+      --hint: var(--tg-theme-hint-color, #888888);
       --btn: var(--tg-theme-button-color, #3390ec);
       --btn-text: var(--tg-theme-button-text-color, #ffffff);
-      --secondary-bg: var(--tg-theme-secondary-bg-color, #1c1c2e);
+      --secondary-bg: var(--tg-theme-secondary-bg-color, #1c1c2a);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
+      padding: 20px 16px 32px;
+    }
+
+    /* ── Header ── */
+    .header { text-align: center; margin-bottom: 20px; }
+    .header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .header p  { font-size: 13px; color: var(--hint); }
+
+    /* ── Camera view ── */
+    #camera-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 360px;
+      border-radius: 18px;
+      overflow: hidden;
+      background: #000;
+      aspect-ratio: 4/3;
+    }
+
+    #camera-wrap video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* Targeting overlay */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
       justify-content: center;
-      padding: 24px 20px;
+      pointer-events: none;
+    }
+    .scan-frame {
+      width: 75%;
+      height: 38%;
+      border: 2.5px solid var(--btn);
+      border-radius: 10px;
+      box-shadow: 0 0 0 2000px rgba(0,0,0,0.45);
+      position: relative;
+    }
+    /* Corner marks */
+    .scan-frame::before, .scan-frame::after,
+    .corner-br, .corner-bl {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      border-color: #fff;
+      border-style: solid;
+    }
+    .scan-frame::before { top: -3px; left: -3px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+    .scan-frame::after  { top: -3px; right: -3px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+    .corner-br { bottom: -3px; right: -3px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+    .corner-bl { bottom: -3px; left: -3px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+
+    /* Scan line animation */
+    .scan-line {
+      position: absolute;
+      left: 4px; right: 4px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--btn), transparent);
+      animation: scanline 2s ease-in-out infinite;
+      border-radius: 2px;
+    }
+    @keyframes scanline {
+      0%   { top: 8px; opacity: 1; }
+      95%  { top: calc(100% - 8px); opacity: 1; }
+      100% { top: calc(100% - 8px); opacity: 0; }
+    }
+
+    /* ── Status bar ── */
+    #status {
+      width: 100%;
+      max-width: 360px;
+      margin-top: 14px;
+      padding: 11px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      text-align: center;
+      background: rgba(255,255,255,0.06);
+      color: var(--hint);
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    #status.scanning { color: var(--btn); background: rgba(51,144,236,0.12); }
+    #status.success  { color: #27ae60;   background: rgba(39,174,96,0.15); }
+    #status.error    { color: #e74c3c;   background: rgba(231,76,60,0.15); }
+
+    .dot { animation: blink 1s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    /* ── Result card ── */
+    #result-card {
+      display: none;
+      width: 100%;
+      max-width: 360px;
+      margin-top: 16px;
+      background: var(--secondary-bg);
+      border-radius: 16px;
+      padding: 18px;
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+    .rc-label { font-size: 11px; color: var(--hint); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .rc-value { font-size: 26px; font-weight: 700; letter-spacing: 3px; color: var(--btn); margin-bottom: 18px; word-break: break-all; }
+
+    .btn-row { display: flex; gap: 10px; }
+    .btn {
+      flex: 1; border: none; border-radius: 12px;
+      padding: 13px; font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .btn:active { opacity: 0.7; }
+    .btn-send   { background: var(--btn); color: var(--btn-text); }
+    .btn-rescan { background: rgba(255,255,255,0.08); color: var(--text); }
+
+    /* ── Error state ── */
+    #error-state {
+      display: none;
+      width: 100%;
+      max-width: 360px;
+      margin-top: 16px;
+      background: rgba(231,76,60,0.12);
+      border: 1px solid rgba(231,76,60,0.25);
+      border-radius: 14px;
+      padding: 18px 20px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #e74c3c;
       text-align: center;
     }
-    .logo { font-size: 64px; margin-bottom: 16px; animation: float 3s ease-in-out infinite; }
-    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-    h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-    .subtitle { font-size: 14px; color: var(--hint); margin-bottom: 40px; line-height: 1.5; }
-    .scan-btn {
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-      background: var(--btn); color: var(--btn-text); border: none;
-      border-radius: 14px; padding: 16px 32px; font-size: 17px; font-weight: 600;
-      cursor: pointer; width: 100%; max-width: 320px;
-      transition: opacity 0.15s, transform 0.1s;
-      box-shadow: 0 4px 20px rgba(51,144,236,0.35);
+    #error-state button {
+      margin-top: 14px;
+      padding: 10px 24px;
+      background: var(--btn);
+      color: var(--btn-text);
+      border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
     }
-    .scan-btn:active { opacity: 0.85; transform: scale(0.97); }
-    .scan-btn svg { width: 22px; height: 22px; flex-shrink: 0; }
-    #result {
-      display: none; width: 100%; max-width: 340px;
-      background: var(--secondary-bg); border-radius: 18px; padding: 20px;
-      margin-top: 24px; text-align: left; border: 1px solid rgba(255,255,255,0.07);
-    }
-    #result .result-label { font-size: 11px; color: var(--hint); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-    #result .result-code { font-size: 24px; font-weight: 700; letter-spacing: 2px; color: var(--btn); margin-bottom: 16px; word-break: break-all; }
-    .action-row { display: flex; gap: 10px; }
-    .btn-confirm {
-      flex: 1; background: var(--btn); color: var(--btn-text); border: none;
-      border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer;
-    }
-    .btn-again {
-      flex: 1; background: rgba(255,255,255,0.08); color: var(--text); border: none;
-      border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 600; cursor: pointer;
-    }
-    .btn-confirm:active, .btn-again:active { opacity: 0.7; }
-    #not-supported {
-      display: none; background: rgba(231,76,60,0.15); border: 1px solid rgba(231,76,60,0.3);
-      border-radius: 14px; padding: 16px 20px; font-size: 14px; color: #e74c3c;
-      margin-top: 20px; max-width: 320px; line-height: 1.5;
-    }
-    .tip { font-size: 12px; color: var(--hint); margin-top: 24px; max-width: 280px; line-height: 1.6; }
   </style>
 </head>
 <body>
-  <div class="logo">📦</div>
-  <h1>ERPNext Scanner</h1>
-  <p class="subtitle">Scan any barcode or QR code<br>to look up item details instantly</p>
 
-  <button class="scan-btn" id="scanBtn">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
-      <line x1="8" y1="12" x2="16" y2="12"/><line x1="12" y1="8" x2="12" y2="16"/>
-    </svg>
-    Open Camera Scanner
-  </button>
+  <div class="header">
+    <h1>📦 Barcode Scanner</h1>
+    <p>EAN-13 · EAN-8 · Code 128 · Code 39 · UPC</p>
+  </div>
 
-  <div id="result">
-    <div class="result-label">Barcode detected</div>
-    <div class="result-code" id="resultCode"></div>
-    <div class="action-row">
-      <button class="btn-confirm" id="btnSend">✅ Send to Bot</button>
-      <button class="btn-again" id="btnAgain">🔄 Scan Again</button>
+  <!-- Camera -->
+  <div id="camera-wrap">
+    <video id="video" autoplay muted playsinline></video>
+    <div class="overlay">
+      <div class="scan-frame">
+        <div class="corner-br"></div>
+        <div class="corner-bl"></div>
+        <div class="scan-line"></div>
+      </div>
     </div>
   </div>
 
-  <div id="not-supported">
-    ⚠️ QR scanning requires Telegram mobile app (Android/iOS).<br><br>
-    Please open this bot on your phone, not Telegram Web.
+  <div id="status" class="scanning">
+    <span class="dot">●</span> Starting camera…
   </div>
 
-  <p class="tip" id="tip">Supports EAN-13, EAN-8, Code 128, QR Code, and more</p>
+  <!-- Result -->
+  <div id="result-card">
+    <div class="rc-label">Barcode detected</div>
+    <div class="rc-value" id="rc-value"></div>
+    <div class="btn-row">
+      <button class="btn btn-send"   id="btn-send">✅ Send to Bot</button>
+      <button class="btn btn-rescan" id="btn-rescan">🔄 Scan Again</button>
+    </div>
+  </div>
+
+  <!-- Camera error -->
+  <div id="error-state">
+    <strong>⚠️ Camera access denied</strong><br><br>
+    Please allow camera access in your Telegram settings, then try again.
+    <br>
+    <button onclick="startScanner()">Try Again</button>
+  </div>
 
   <script>
     const tg = window.Telegram.WebApp;
     tg.expand();
     tg.ready();
 
-    let scannedBarcode = null;
-    const scanBtn = document.getElementById("scanBtn");
-    const resultDiv = document.getElementById("result");
-    const resultCode = document.getElementById("resultCode");
-    const btnSend = document.getElementById("btnSend");
-    const btnAgain = document.getElementById("btnAgain");
-    const notSupported = document.getElementById("not-supported");
-    const tip = document.getElementById("tip");
+    const video       = document.getElementById('video');
+    const statusEl    = document.getElementById('status');
+    const resultCard  = document.getElementById('result-card');
+    const rcValue     = document.getElementById('rc-value');
+    const btnSend     = document.getElementById('btn-send');
+    const btnRescan   = document.getElementById('btn-rescan');
+    const errorState  = document.getElementById('error-state');
 
-    function openScanner() {
-      if (!tg.showScanQrPopup) {
-        notSupported.style.display = "block";
-        scanBtn.style.display = "none";
-        tip.style.display = "none";
-        return;
-      }
-      tg.showScanQrPopup({ text: "Point camera at a barcode" }, function(data) {
-        scannedBarcode = data.trim();
-        tg.closeScanQrPopup();
-        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
-        resultCode.textContent = scannedBarcode;
-        resultDiv.style.display = "block";
-        scanBtn.style.display = "none";
-        tip.style.display = "none";
-        return true;
-      });
+    let codeReader = null;
+    let scanning   = false;
+    let lastResult = null;
+    let stream     = null;
+
+    function setStatus(msg, type = '') {
+      statusEl.className = 'status ' + type;
+      statusEl.innerHTML = msg;
     }
 
-    btnSend.addEventListener("click", () => { if (scannedBarcode) tg.sendData(scannedBarcode); });
-    btnAgain.addEventListener("click", () => {
-      scannedBarcode = null;
-      resultDiv.style.display = "none";
-      scanBtn.style.display = "flex";
-      tip.style.display = "block";
-      openScanner();
+    function stopCamera() {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      if (codeReader) {
+        codeReader.reset();
+      }
+      scanning = false;
+    }
+
+    async function startScanner() {
+      errorState.style.display  = 'none';
+      resultCard.style.display  = 'none';
+      setStatus('<span class="dot">●</span> Starting camera…', 'scanning');
+
+      // ZXing multi-format reader — reads all barcode types
+      codeReader = new ZXing.BrowserMultiFormatReader();
+
+      try {
+        // Get rear camera
+        const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+        const rearCam = devices.find(d =>
+          d.label.toLowerCase().includes('back') ||
+          d.label.toLowerCase().includes('rear') ||
+          d.label.toLowerCase().includes('environment')
+        ) || devices[devices.length - 1]; // fallback to last camera
+
+        const deviceId = rearCam ? rearCam.deviceId : undefined;
+
+        // Get stream for the video element
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            deviceId: deviceId ? { exact: deviceId } : undefined,
+            facingMode: deviceId ? undefined : { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+
+        video.srcObject = stream;
+        await video.play();
+
+        setStatus('<span class="dot">●</span> Align barcode in the frame', 'scanning');
+        scanning = true;
+
+        // Decode loop
+        codeReader.decodeFromStream(stream, video, (result, err) => {
+          if (!scanning) return;
+          if (result) {
+            onDetected(result.getText());
+          }
+          // err is normal — fires every frame with no barcode, ignore it
+        });
+
+      } catch (err) {
+        console.error(err);
+        errorState.style.display = 'block';
+        setStatus('❌ Camera error', 'error');
+      }
+    }
+
+    function onDetected(barcode) {
+      if (!scanning) return;
+      scanning = false;
+      lastResult = barcode.trim();
+
+      stopCamera();
+
+      // Haptic feedback
+      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+
+      // Show result
+      rcValue.textContent    = lastResult;
+      resultCard.style.display = 'block';
+      setStatus('✅ Barcode found!', 'success');
+    }
+
+    btnSend.addEventListener('click', () => {
+      if (lastResult) tg.sendData(lastResult);
     });
-    scanBtn.addEventListener("click", openScanner);
+
+    btnRescan.addEventListener('click', () => {
+      lastResult = null;
+      resultCard.style.display = 'none';
+      startScanner();
+    });
+
+    // Auto-start
+    startScanner();
   </script>
 </body>
 </html>
