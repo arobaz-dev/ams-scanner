@@ -5,18 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>AMS Barcode Scanner</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- ZXing: reads EAN-13, EAN-8, Code128, Code39, UPC, ITF, DataMatrix -->
+  <!-- ZXing to decode barcode from captured photo -->
   <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
   <style>
     :root {
-      --bg: var(--tg-theme-bg-color, #111118);
+      --bg:  var(--tg-theme-bg-color, #111118);
       --text: var(--tg-theme-text-color, #ffffff);
       --hint: var(--tg-theme-hint-color, #888888);
-      --btn: var(--tg-theme-button-color, #3390ec);
+      --btn:  var(--tg-theme-button-color, #3390ec);
       --btn-text: var(--tg-theme-button-text-color, #ffffff);
       --secondary-bg: var(--tg-theme-secondary-bg-color, #1c1c2a);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
@@ -25,191 +26,222 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 20px 16px 32px;
-    }
-
-    /* ── Header ── */
-    .header { text-align: center; margin-bottom: 20px; }
-    .header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-    .header p  { font-size: 13px; color: var(--hint); }
-
-    /* ── Camera view ── */
-    #camera-wrap {
-      position: relative;
-      width: 100%;
-      max-width: 360px;
-      border-radius: 18px;
-      overflow: hidden;
-      background: #000;
-      aspect-ratio: 4/3;
-    }
-
-    #camera-wrap video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    /* Targeting overlay */
-    .overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
       justify-content: center;
-      pointer-events: none;
-    }
-    .scan-frame {
-      width: 75%;
-      height: 38%;
-      border: 2.5px solid var(--btn);
-      border-radius: 10px;
-      box-shadow: 0 0 0 2000px rgba(0,0,0,0.45);
-      position: relative;
-    }
-    /* Corner marks */
-    .scan-frame::before, .scan-frame::after,
-    .corner-br, .corner-bl {
-      content: '';
-      position: absolute;
-      width: 18px; height: 18px;
-      border-color: #fff;
-      border-style: solid;
-    }
-    .scan-frame::before { top: -3px; left: -3px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
-    .scan-frame::after  { top: -3px; right: -3px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
-    .corner-br { bottom: -3px; right: -3px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
-    .corner-bl { bottom: -3px; left: -3px;  border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
-
-    /* Scan line animation */
-    .scan-line {
-      position: absolute;
-      left: 4px; right: 4px;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--btn), transparent);
-      animation: scanline 2s ease-in-out infinite;
-      border-radius: 2px;
-    }
-    @keyframes scanline {
-      0%   { top: 8px; opacity: 1; }
-      95%  { top: calc(100% - 8px); opacity: 1; }
-      100% { top: calc(100% - 8px); opacity: 0; }
-    }
-
-    /* ── Status bar ── */
-    #status {
-      width: 100%;
-      max-width: 360px;
-      margin-top: 14px;
-      padding: 11px 16px;
-      border-radius: 12px;
-      font-size: 13px;
-      font-weight: 500;
+      padding: 28px 20px 40px;
       text-align: center;
-      background: rgba(255,255,255,0.06);
+      gap: 0;
+    }
+
+    /* ── Idle screen ── */
+    #screen-idle { display: flex; flex-direction: column; align-items: center; }
+
+    .big-icon {
+      font-size: 72px;
+      margin-bottom: 18px;
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+
+    .subtitle {
+      font-size: 13px;
       color: var(--hint);
-      min-height: 42px;
+      margin-bottom: 36px;
+      line-height: 1.6;
+    }
+
+    /* Hidden file input — triggers native camera */
+    #cam-input {
+      display: none;
+    }
+
+    .scan-btn {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-    }
-    #status.scanning { color: var(--btn); background: rgba(51,144,236,0.12); }
-    #status.success  { color: #27ae60;   background: rgba(39,174,96,0.15); }
-    #status.error    { color: #e74c3c;   background: rgba(231,76,60,0.15); }
-
-    .dot { animation: blink 1s infinite; }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
-
-    /* ── Result card ── */
-    #result-card {
-      display: none;
+      gap: 10px;
+      background: var(--btn);
+      color: var(--btn-text);
+      border: none;
+      border-radius: 14px;
+      padding: 16px 28px;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
       width: 100%;
-      max-width: 360px;
-      margin-top: 16px;
+      max-width: 300px;
+      box-shadow: 0 4px 24px rgba(51,144,236,0.4);
+      transition: transform 0.1s, opacity 0.15s;
+    }
+    .scan-btn:active { transform: scale(0.96); opacity: 0.85; }
+
+    .formats {
+      margin-top: 20px;
+      font-size: 11px;
+      color: var(--hint);
+      line-height: 1.7;
+    }
+
+    /* ── Processing screen ── */
+    #screen-processing {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 52px; height: 52px;
+      border: 4px solid rgba(51,144,236,0.2);
+      border-top-color: var(--btn);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .processing-text { font-size: 16px; color: var(--hint); }
+
+    /* Preview image while decoding */
+    #preview {
+      width: 100%;
+      max-width: 300px;
+      border-radius: 14px;
+      object-fit: cover;
+      display: none;
+      opacity: 0.5;
+    }
+
+    /* ── Result screen ── */
+    #screen-result {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .success-icon { font-size: 52px; margin-bottom: 10px; }
+
+    .result-card {
+      width: 100%;
       background: var(--secondary-bg);
-      border-radius: 16px;
-      padding: 18px;
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 16px;
       border: 1px solid rgba(255,255,255,0.07);
+      text-align: left;
     }
     .rc-label { font-size: 11px; color: var(--hint); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-    .rc-value { font-size: 26px; font-weight: 700; letter-spacing: 3px; color: var(--btn); margin-bottom: 18px; word-break: break-all; }
+    .rc-value { font-size: 26px; font-weight: 700; letter-spacing: 2px; color: var(--btn); word-break: break-all; }
 
-    .btn-row { display: flex; gap: 10px; }
+    .btn-row { display: flex; gap: 10px; width: 100%; }
     .btn {
       flex: 1; border: none; border-radius: 12px;
-      padding: 13px; font-size: 15px; font-weight: 600;
+      padding: 14px; font-size: 15px; font-weight: 600;
       cursor: pointer; transition: opacity 0.15s;
     }
     .btn:active { opacity: 0.7; }
     .btn-send   { background: var(--btn); color: var(--btn-text); }
-    .btn-rescan { background: rgba(255,255,255,0.08); color: var(--text); }
+    .btn-again  { background: rgba(255,255,255,0.09); color: var(--text); }
 
-    /* ── Error state ── */
-    #error-state {
+    /* ── Error screen ── */
+    #screen-error {
       display: none;
+      flex-direction: column;
+      align-items: center;
       width: 100%;
-      max-width: 360px;
-      margin-top: 16px;
+      max-width: 320px;
+      gap: 14px;
+    }
+
+    .error-box {
       background: rgba(231,76,60,0.12);
       border: 1px solid rgba(231,76,60,0.25);
       border-radius: 14px;
       padding: 18px 20px;
       font-size: 14px;
-      line-height: 1.6;
       color: #e74c3c;
+      line-height: 1.6;
       text-align: center;
+      width: 100%;
     }
-    #error-state button {
-      margin-top: 14px;
-      padding: 10px 24px;
-      background: var(--btn);
-      color: var(--btn-text);
-      border: none; border-radius: 10px;
-      font-size: 14px; font-weight: 600; cursor: pointer;
+
+    .tip-box {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--hint);
+      line-height: 1.7;
+      text-align: left;
+      width: 100%;
     }
+    .tip-box strong { color: var(--text); }
   </style>
 </head>
 <body>
 
-  <div class="header">
-    <h1>📦 Barcode Scanner</h1>
-    <p>EAN-13 · EAN-8 · Code 128 · Code 39 · UPC</p>
-  </div>
+  <!-- Screen 1: Idle / Start -->
+  <div id="screen-idle">
+    <div class="big-icon">📷</div>
+    <h1>Scan a Barcode</h1>
+    <p class="subtitle">
+      Tap the button below — your camera will open.<br>
+      Point it at any product barcode.
+    </p>
 
-  <!-- Camera -->
-  <div id="camera-wrap">
-    <video id="video" autoplay muted playsinline></video>
-    <div class="overlay">
-      <div class="scan-frame">
-        <div class="corner-br"></div>
-        <div class="corner-bl"></div>
-        <div class="scan-line"></div>
-      </div>
+    <!-- This input opens the native camera on mobile -->
+    <input
+      type="file"
+      id="cam-input"
+      accept="image/*"
+      capture="environment"
+    />
+
+    <button class="scan-btn" onclick="document.getElementById('cam-input').click()">
+      📸 &nbsp;Open Camera
+    </button>
+
+    <div class="formats">
+      Supports: EAN-13 · EAN-8 · Code 128 · Code 39<br>
+      UPC-A · UPC-E · ITF · Data Matrix
     </div>
   </div>
 
-  <div id="status" class="scanning">
-    <span class="dot">●</span> Starting camera…
+  <!-- Screen 2: Processing -->
+  <div id="screen-processing">
+    <img id="preview" alt="captured" />
+    <div class="spinner"></div>
+    <p class="processing-text">Reading barcode…</p>
   </div>
 
-  <!-- Result -->
-  <div id="result-card">
-    <div class="rc-label">Barcode detected</div>
-    <div class="rc-value" id="rc-value"></div>
+  <!-- Screen 3: Result -->
+  <div id="screen-result">
+    <div class="success-icon">✅</div>
+    <div class="result-card">
+      <div class="rc-label">Barcode detected</div>
+      <div class="rc-value" id="rc-value"></div>
+    </div>
     <div class="btn-row">
-      <button class="btn btn-send"   id="btn-send">✅ Send to Bot</button>
-      <button class="btn btn-rescan" id="btn-rescan">🔄 Scan Again</button>
+      <button class="btn btn-send"  id="btn-send">Send to Bot</button>
+      <button class="btn btn-again" id="btn-again">Scan Again</button>
     </div>
   </div>
 
-  <!-- Camera error -->
-  <div id="error-state">
-    <strong>⚠️ Camera access denied</strong><br><br>
-    Please allow camera access in your Telegram settings, then try again.
-    <br>
-    <button onclick="startScanner()">Try Again</button>
+  <!-- Screen 4: Error -->
+  <div id="screen-error">
+    <div class="error-box" id="error-msg">Could not read barcode.</div>
+    <div class="tip-box">
+      <strong>Tips for better scanning:</strong><br>
+      • Hold camera <strong>15–25 cm</strong> from barcode<br>
+      • Make sure barcode is <strong>well lit</strong><br>
+      • Keep phone <strong>steady</strong> while capturing<br>
+      • Avoid shadows or glare on barcode
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-send" id="btn-retry">📸 Try Again</button>
+    </div>
   </div>
 
   <script>
@@ -217,114 +249,141 @@
     tg.expand();
     tg.ready();
 
-    const video       = document.getElementById('video');
-    const statusEl    = document.getElementById('status');
-    const resultCard  = document.getElementById('result-card');
-    const rcValue     = document.getElementById('rc-value');
-    const btnSend     = document.getElementById('btn-send');
-    const btnRescan   = document.getElementById('btn-rescan');
-    const errorState  = document.getElementById('error-state');
+    const camInput      = document.getElementById('cam-input');
+    const preview       = document.getElementById('preview');
+    const rcValue       = document.getElementById('rc-value');
+    const btnSend       = document.getElementById('btn-send');
+    const btnAgain      = document.getElementById('btn-again');
+    const btnRetry      = document.getElementById('btn-retry');
+    const errorMsg      = document.getElementById('error-msg');
 
-    let codeReader = null;
-    let scanning   = false;
-    let lastResult = null;
-    let stream     = null;
+    let lastBarcode = null;
 
-    function setStatus(msg, type = '') {
-      statusEl.className = 'status ' + type;
-      statusEl.innerHTML = msg;
+    // ── Screen switcher ──────────────────────────────────────
+    function show(id) {
+      ['screen-idle','screen-processing','screen-result','screen-error']
+        .forEach(s => {
+          const el = document.getElementById(s);
+          el.style.display = (s === id) ? 'flex' : 'none';
+        });
     }
 
-    function stopCamera() {
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-        stream = null;
-      }
-      if (codeReader) {
-        codeReader.reset();
-      }
-      scanning = false;
-    }
+    show('screen-idle');
 
-    async function startScanner() {
-      errorState.style.display  = 'none';
-      resultCard.style.display  = 'none';
-      setStatus('<span class="dot">●</span> Starting camera…', 'scanning');
+    // ── Handle photo capture ─────────────────────────────────
+    camInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
 
-      // ZXing multi-format reader — reads all barcode types
-      codeReader = new ZXing.BrowserMultiFormatReader();
+      // Show processing screen with image preview
+      const url = URL.createObjectURL(file);
+      preview.src = url;
+      preview.style.display = 'block';
+      show('screen-processing');
 
       try {
-        // Get rear camera
-        const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
-        const rearCam = devices.find(d =>
-          d.label.toLowerCase().includes('back') ||
-          d.label.toLowerCase().includes('rear') ||
-          d.label.toLowerCase().includes('environment')
-        ) || devices[devices.length - 1]; // fallback to last camera
+        const barcode = await decodeBarcode(file);
+        lastBarcode = barcode;
 
-        const deviceId = rearCam ? rearCam.deviceId : undefined;
+        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
 
-        // Get stream for the video element
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            deviceId: deviceId ? { exact: deviceId } : undefined,
-            facingMode: deviceId ? undefined : { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-
-        video.srcObject = stream;
-        await video.play();
-
-        setStatus('<span class="dot">●</span> Align barcode in the frame', 'scanning');
-        scanning = true;
-
-        // Decode loop
-        codeReader.decodeFromStream(stream, video, (result, err) => {
-          if (!scanning) return;
-          if (result) {
-            onDetected(result.getText());
-          }
-          // err is normal — fires every frame with no barcode, ignore it
-        });
+        rcValue.textContent = barcode;
+        show('screen-result');
 
       } catch (err) {
         console.error(err);
-        errorState.style.display = 'block';
-        setStatus('❌ Camera error', 'error');
+        errorMsg.textContent = '⚠️ Could not read barcode from this photo. Please try again with better lighting or distance.';
+        show('screen-error');
       }
+
+      // Reset input so same file can be re-selected
+      camInput.value = '';
+      URL.revokeObjectURL(url);
+    });
+
+    // ── ZXing decode from File ───────────────────────────────
+    async function decodeBarcode(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+
+            // Scale up small images for better decode accuracy
+            const maxDim = 1600;
+            let w = img.width;
+            let h = img.height;
+            if (Math.max(w, h) < maxDim) {
+              const scale = maxDim / Math.max(w, h);
+              w = Math.round(w * scale);
+              h = Math.round(h * scale);
+            }
+
+            canvas.width  = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+
+            const hints = new Map();
+            // Tell ZXing to try all formats
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+              ZXing.BarcodeFormat.EAN_13,
+              ZXing.BarcodeFormat.EAN_8,
+              ZXing.BarcodeFormat.CODE_128,
+              ZXing.BarcodeFormat.CODE_39,
+              ZXing.BarcodeFormat.UPC_A,
+              ZXing.BarcodeFormat.UPC_E,
+              ZXing.BarcodeFormat.ITF,
+              ZXing.BarcodeFormat.DATA_MATRIX,
+              ZXing.BarcodeFormat.QR_CODE,
+            ]);
+            hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+            const decoder = new ZXing.MultiFormatReader();
+            decoder.setHints(hints);
+
+            try {
+              const luminance = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+              const bmp       = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
+              const result    = decoder.decode(bmp);
+              resolve(result.getText());
+            } catch (ex) {
+              // Try inverted image (some barcodes on dark backgrounds)
+              try {
+                const luminance2 = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+                const inverted   = luminance2.invert();
+                const bmp2       = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(inverted));
+                const result2    = decoder.decode(bmp2);
+                resolve(result2.getText());
+              } catch (ex2) {
+                reject(new Error('Barcode not found in image'));
+              }
+            }
+          };
+          img.onerror = () => reject(new Error('Could not load image'));
+          img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error('Could not read file'));
+        reader.readAsDataURL(file);
+      });
     }
 
-    function onDetected(barcode) {
-      if (!scanning) return;
-      scanning = false;
-      lastResult = barcode.trim();
-
-      stopCamera();
-
-      // Haptic feedback
-      if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-
-      // Show result
-      rcValue.textContent    = lastResult;
-      resultCard.style.display = 'block';
-      setStatus('✅ Barcode found!', 'success');
-    }
-
+    // ── Buttons ──────────────────────────────────────────────
     btnSend.addEventListener('click', () => {
-      if (lastResult) tg.sendData(lastResult);
+      if (lastBarcode) tg.sendData(lastBarcode);
     });
 
-    btnRescan.addEventListener('click', () => {
-      lastResult = null;
-      resultCard.style.display = 'none';
-      startScanner();
+    btnAgain.addEventListener('click', () => {
+      lastBarcode = null;
+      show('screen-idle');
     });
 
-    // Auto-start
-    startScanner();
+    btnRetry.addEventListener('click', () => {
+      show('screen-idle');
+      // Auto-trigger camera again
+      setTimeout(() => document.getElementById('cam-input').click(), 100);
+    });
   </script>
 </body>
 </html>
